@@ -1,0 +1,82 @@
+networks:
+  logging:
+    driver: bridge
+  proxy:
+    driver: bridge
+  external:
+
+volumes:
+  loki:
+  applicationLogs:
+  grafana:
+
+services:
+  potato:
+    image: "potato:latest"
+    container_name: "potato_app"
+    depends_on:
+      - loki
+      - promtail
+    volumes:
+      - applicationLogs:/app/logs
+    networks:
+      - logging
+      - proxy
+
+  traefik:
+    image: "traefik:v3.2"
+    container_name: "potato_traefik"
+    ports:
+      - "80:80"
+      - "8080:8080"
+    volumes:
+      - ./config/traefik/traefik.yaml:/etc/traefik/traefik.yaml:ro
+      - ./config/traefik/dynamic:/etc/traefik/dynamic:ro
+    networks:
+      - external
+      - proxy
+
+  loki:
+    image: grafana/loki:2.9.2
+    container_name: "potato_loki"
+    user: root
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - ./config/loki/local-config.yaml:/etc/loki/local-config.yaml:ro
+      - loki:/data
+    networks:
+      - logging
+      - proxy
+
+  promtail:
+    image: grafana/promtail:2.9.2
+    container_name: "potato_promtail"
+    depends_on:
+      - loki
+    volumes:
+      - applicationLogs:/var/log/app:ro
+      - ./config/promtail/config.yaml:/etc/promtail/config.yml:ro
+    command: -config.file=/etc/promtail/config.yml
+    networks:
+      - logging
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    container_name: "potato_grafana"
+    depends_on:
+      - loki
+    environment:
+      - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+    entrypoint:
+      - sh
+      - -euc
+      - /run.sh
+    volumes:
+      - ./config/grafana/ds.yaml:/etc/grafana/provisioning/datasources/ds.yaml:ro
+      - ./config/grafana/grafana.ini:/etc/grafana/grafana.ini:ro
+      - grafana:/var/lib/grafana
+    networks:
+      - logging
+      - proxy

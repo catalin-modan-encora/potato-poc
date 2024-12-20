@@ -1,6 +1,19 @@
+using Microsoft.AspNetCore.HttpOverrides;
 using Potato.Web.Components;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddSerilog(cfg =>
+{
+    cfg.ReadFrom.Configuration(builder.Configuration);
+});
+
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders =
+        ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+});
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
@@ -16,6 +29,7 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
+app.UseForwardedHeaders();
 app.UseHttpsRedirection();
 
 app.UseStaticFiles();
